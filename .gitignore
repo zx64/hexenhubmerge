@@ -1,3 +1,4 @@
 *.wad
 *.pk3
 __pycache__
+env
