@@ -1,2 +1,4 @@
+click
+tqdm
 git+https://github.com/zx64/ListACS#egg=ListACS
 git+https://github.com/zx64/omgifol#egg=omgifol
