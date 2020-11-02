@@ -2,62 +2,109 @@ import click
 import omg
 import os
 
-player_start_ids = [1, 2, 3, 4, 9100, 9101, 9102, 9103]
-teleport_dest_id = 14
-map_gutter = 10.0
+
+class MapBounds:
+    def __init__(self, maped):
+        verts = maped.vertexes
+        min_x = min(verts, key=lambda v: v.x).x
+        min_y = min(verts, key=lambda v: v.y).y
+        max_x = max(verts, key=lambda v: v.x).x
+        max_y = max(verts, key=lambda v: v.y).y
+
+        self.min = omg.Vertex(min_x, min_y)
+        self.max = omg.Vertex(max_x, max_y)
+
+    def width(self):
+        return self.max.x - self.min.x
 
 
-def MergeMap(destmap, sourcemap, start_x):
-    min_x = min(sourcemap.vertexes, key=lambda v: v.x).x
-    max_x = max(sourcemap.vertexes, key=lambda v: v.x).x
+def move_map(maped, by):
+    for vert in maped.vertexes:
+        vert.x += by.x
+        vert.y += by.y
 
-    start_x -= min_x
-    min_vertex = len(destmap.vertexes)
-    min_linedef = len(destmap.linedefs)
-    min_sidedef = len(destmap.sidedefs)
-    min_sector = len(destmap.sectors)
-    # min_thing = len(destmap.things)
-
-    for thing in sourcemap.things:
-        if thing.type in player_start_ids:
-            thing.type = teleport_dest_id
-        thing.x += start_x
-        destmap.things.append(thing)
-
-    for line in sourcemap.linedefs:
-        line.v1 += min_vertex
-        line.v2 += min_vertex
-        if line.id is not None:
-            line.id += min_linedef
-        if line.arg0 is not None:
-            line.arg0 += min_linedef
-        line.sidefront += min_sidedef
-        if line.sideback is not None:
-            line.sideback += min_sidedef
-        destmap.linedefs.append(line)
-
-    for vert in sourcemap.vertexes:
-        vert.x += start_x
-        destmap.vertexes.append(vert)
-
-    for side in sourcemap.sidedefs:
-        side.sector += min_sector
-        destmap.sidedefs.append(side)
-
-    for sector in sourcemap.sectors:
-        if sector.id:
-            sector.id += min_sector
-        destmap.sectors.append(sector)
-
-    start_x += max_x + map_gutter
-    return start_x
+    for thing in maped.things:
+        thing.x += by.x
+        thing.y += by.y
 
 
-def CanonMapName(mapname):
+def edit_map(mapinfo):
+    ed = omg.UMapEditor(mapinfo, "Hexen")
+    ed.bounds = MapBounds(ed)
+    return ed
+
+
+def maxid(seq):
+    return max(s.id for s in seq if s.id is not None)
+
+
+class MapMerger:
+    player_start_ids = [1, 2, 3, 4, 9100, 9101, 9102, 9103]
+    teleport_dest_id = 14
+    gutter = 10.0
+
+    def __init__(self, hub):
+        self.hub = hub
+        self.offset = omg.Vertex(hub.bounds.max.x + self.gutter, 0.0)
+        self.base_sector_id = maxid(hub.sectors)
+        self.base_thing_id = maxid(hub.things)
+
+    def to_textmap(self):
+        return self.hub.to_textmap()
+
+    def to_lumps(self):
+        return self.hub.to_lumps()
+
+    def merge(self, spoke):
+        self.offset.x -= spoke.bounds.min.x
+        move_map(spoke, self.offset)
+
+        min_vertex = len(self.hub.vertexes)
+        min_linedef = len(self.hub.linedefs)
+        min_sidedef = len(self.hub.sidedefs)
+        min_sector = len(self.hub.sectors)
+
+        for thing in spoke.things:
+            if thing.id:
+                thing.id += self.base_thing_id
+            if thing.type in self.player_start_ids:
+                thing.type = self.teleport_dest_id
+            self.hub.things.append(thing)
+
+        for line in spoke.linedefs:
+            line.v1 += min_vertex
+            line.v2 += min_vertex
+            if line.id is not None:
+                line.id += min_linedef
+            if line.arg0 is not None:
+                line.arg0 += min_linedef
+            line.sidefront += min_sidedef
+            if line.sideback is not None:
+                line.sideback += min_sidedef
+            self.hub.linedefs.append(line)
+
+        for vert in spoke.vertexes:
+            self.hub.vertexes.append(vert)
+
+        for side in spoke.sidedefs:
+            side.sector += min_sector
+            self.hub.sidedefs.append(side)
+
+        for sector in spoke.sectors:
+            if sector.id:
+                sector.id += self.base_sector_id
+            self.hub.sectors.append(sector)
+
+        self.offset.x += spoke.bounds.max.x + self.gutter
+        self.base_sector_id += maxid(spoke.sectors)
+        self.base_thing_id += maxid(spoke.things)
+
+
+def to_mapname(mapstr):
     try:
-        mapname = f"MAP{int(mapname)}"
+        mapstr = f"MAP{int(mapstr)}"
     except ValueError:
-        return mapname.upper()
+        return mapstr.upper()
 
 
 @click.command()
@@ -72,40 +119,36 @@ def hexenhubmerge(input, output, merged_map_name, hub, maps, udmf):
 
     source = omg.WAD(input)
 
-    hub = CanonMapName(hub)
-    if hub not in source.maps:
-        click.echo(f"Error: Hub {hub} not found in source wad.")
+    hubname = to_mapname(hub)
+    if hubname not in source.maps:
+        click.echo(f"Error: Hub {hubname} not found in source wad.")
         return 1
 
-    maps = [CanonMapName(s) for s in maps]
-    missing = [mapname for mapname in maps if mapname not in source.maps]
+    spokes = [to_mapname(s) for s in maps]
+    missing = [mapname for mapname in spokes if mapname not in source.maps]
 
     if missing:
         mstr = ", ".join(missing)
         click.echo(f"Error: Could not find {mstr}")
         return 1
 
-    click.echo(f"Using {hub} as the starting hub")
-    merged = omg.UMapEditor(source.maps[hub], "Hexen")
-    start_x = max(merged.vertexes, key=lambda v: v.x).x + map_gutter
+    click.echo(f"Using {hubname} as the starting hub")
+    merger = MapMerger(edit_map(source.maps[hubname]))
 
-    for mapname in maps:
-        click.echo(f"Merging {mapname} starting at {start_x}")
-        start_x = MergeMap(
-            merged, omg.UMapEditor(source.maps[mapname], "Hexen"), start_x
-        )
+    for spoke in spokes:
+        click.echo(f"Merging {spoke} starting at {merger.offset.x}")
+        merger.merge(edit_map(source.maps[spoke]))
 
+    merged_map_name = to_mapname(merged_map_name)
     click.echo(
         f"Merged map will be {merged_map_name} in {click.format_filename(output)}"
     )
     if udmf is not None:
         click.echo(f"Dumped UDMF to {click.format_filename(udmf.name)}")
-        udmf.write(merged.to_textmap())
-    if os.path.exists(output):
-        result = omg.WAD(output)
-    else:
-        result = omg.WAD()
-    result.udmfmaps[merged_map_name.upper()] = merged.to_lumps()
+        udmf.write(merger.to_textmap())
+
+    result = omg.WAD(output if os.path.exists(output) else None)
+    result.udmfmaps[merged_map_name] = merger.to_lumps()
     result.to_file(output)
 
     return 0
