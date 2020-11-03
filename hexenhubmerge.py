@@ -1,6 +1,7 @@
 import click
 import omg
 import os
+from collections import defaultdict
 
 
 class MapBounds:
@@ -42,14 +43,73 @@ def maxid(seq):
         return 0
 
 
+class Specials:
+    Teleport = 70
+    Teleport_NewMap = 74
+
+    # arg0 of some actions specials refers to a thing id
+    action_uses_thing = [Teleport]
+    # arg0 of some actions specials refers to a line id
+    action_uses_line = []
+
+    # arg0 of some actions should be treated as a fixed number
+    action_fixed = [Teleport_NewMap]
+
+
+class Things:
+    PlayerStarts = [1, 2, 3, 4, 9100, 9101, 9102, 9103]
+    TeleportDest = 14
+
+
 class MapMerger:
-    player_start_types = [1, 2, 3, 4, 9100, 9101, 9102, 9103]
-    teleport_dest_type = 14
     gutter = 10.0
 
     def __init__(self, mapinfo):
         self.map = edit_map(mapinfo)
         self.offset = omg.Vertex(self.map.bounds.max.x + self.gutter, 0.0)
+        self.teleport_ids = defaultdict(dict)
+
+        players = [
+            thing for thing in self.map.things if thing.type in Things.PlayerStarts
+        ]
+        min_arg0 = min(players, key=lambda p: p.arg0).arg0
+        click.echo(f"Lowest arg0 for player starts is {min_arg0}")
+        for thing in self.map.things:
+            if thing.type in Things.PlayerStarts and thing.arg0 > min_arg0:
+                # click.echo(f"Alt player start {thing.type} {thing.arg0}")
+                # thing.type = Things.TeleportDest
+                # thing.id = self.teleport_ids[0][thing.arg0]
+                # thing.arg0 = 0
+                # thing.arg1 = 0
+                pass
+
+        # TODO: Do we also need teleport dests for the lowest start positions?
+
+    def fix_teleports(self, source_hubnum, dest_hubnum, spoke_nums):
+        for idx, line in enumerate(self.map.linedefs):
+            if line.special != Specials.Teleport_NewMap:
+                continue
+            orig_arg0 = line.arg0
+            orig_arg1 = line.arg1
+            orig_arg2 = line.arg2
+            if line.arg0 == source_hubnum:
+                # line.special = Specials.teleport
+                # line.arg0 = self.teleport_ids[0][line.arg1]
+                # line.arg1 = 0
+                # line.arg2 = 0
+                result = "to hub"
+            elif line.arg0 not in spoke_nums:
+                result = f"exiting into MAP{dest_hubnum:02}"
+                line.arg0 = dest_hubnum
+            else:
+                # line.special = Specials.Teleport
+                # line.arg0 = self.teleport_ids[line.arg0][line.arg1]
+                # line.arg1 = 0
+                # line.arg2 = 0
+                result = "to spoke"
+            click.echo(
+                f"lines[{idx}] Teleport_NewMap({orig_arg0}, {orig_arg1}, {orig_arg2}) -> {result}"
+            )
 
     def to_textmap(self):
         return self.map.to_textmap()
@@ -77,23 +137,35 @@ class MapMerger:
         for thing in spoke.things:
             if thing.id:
                 thing.id += base_thing_id
-            if thing.type in self.player_start_types:
+            if thing.type in Things.PlayerStarts:
                 # TODO: Allocate new ids for teleport destinations
-                thing.type = self.teleport_dest_type
+                # playerstart.arg0 identifies returning player position
+                # playerstart.id is unused(?)
+                # teleportdest.arg0 is unused(?)
+                # teleportdest.id is referenced by linedefs etc.
+                thing.type = Things.TeleportDest
+                # thing.id = self.teleport_ids[mapnum][thing.arg0]
+                # thing.arg0 = 0
 
-        for line in spoke.linedefs:
+        for idx, line in enumerate(spoke.linedefs):
             line.v1 += base_vertex
             line.v2 += base_vertex
-            # TODO: Should these be base_linedef or base_thing_id
             if line.id is not None:
-                line.id += base_linedef
+                line.id += base_linedef_id
+            # TODO: More complete parameter fixups
             if line.arg0 is not None:
-                line.arg0 += base_linedef
+                if line.special in Specials.action_uses_thing:
+                    line.arg0 += base_thing_id
+                elif line.special in Specials.action_uses_line:
+                    line.arg0 += base_linedef_id
+                elif line.special in Specials.action_fixed:
+                    # arg0 should be left alone
+                    pass
+                else:
+                    line.arg0 += base_sector_id
             line.sidefront += base_sidedef
             if line.sideback is not None:
                 line.sideback += base_sidedef
-            # TODO: Replace map change triggers (other than hub exit) with teleports to
-            # previously allocated teleport destinations
 
         for side in spoke.sidedefs:
             side.sector += base_sector
@@ -126,9 +198,13 @@ class MapMerger:
 
 def to_mapname(mapstr):
     try:
-        mapstr = f"MAP{int(mapstr)}"
+        mapstr = f"MAP{int(mapstr):02}"
     except ValueError:
         return mapstr.upper()
+
+
+def to_mapnum(mapname):
+    return int(mapname[-2:])
 
 
 @click.command()
@@ -156,17 +232,21 @@ def hexenhubmerge(input, output, merged_map_name, hub, maps, udmf):
         click.echo(f"Error: Could not find {mstr}")
         return 1
 
-    click.echo(f"Using {hubname} as the starting hub")
+    click.echo(f"Converting {hubname} to UDMF to use as the starting hub")
     merger = MapMerger(source.maps[hubname])
 
     for spoke in spokes:
-        click.echo(f"Merging {spoke} starting at {merger.offset.x}")
+        click.echo(f"Converting and merging {spoke}")
         merger.merge(source.maps[spoke])
 
     merged_map_name = to_mapname(merged_map_name)
+    source_hubnum = to_mapnum(hubname)
+    dest_hubnum = to_mapnum(merged_map_name) + 1
+    spoke_nums = [to_mapnum(s) for s in maps]
     click.echo(
-        f"Merged map will be {merged_map_name} in {click.format_filename(output)}"
+        f"Merged map will be {merged_map_name} in {click.format_filename(output)}, will exit into MAP{dest_hubnum:02}."
     )
+    merger.fix_teleports(source_hubnum, dest_hubnum, spoke_nums)
     if udmf is not None:
         click.echo(f"Dumped UDMF to {click.format_filename(udmf.name)}")
         udmf.write(merger.to_textmap())
