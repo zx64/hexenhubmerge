@@ -35,69 +35,93 @@ def edit_map(mapinfo):
 
 
 def maxid(seq):
-    return max(s.id for s in seq if s.id is not None)
+    try:
+        return max(s.id for s in seq if s.id is not None)
+    except ValueError:
+        # May have no custom ids
+        return 0
 
 
 class MapMerger:
-    player_start_ids = [1, 2, 3, 4, 9100, 9101, 9102, 9103]
-    teleport_dest_id = 14
+    player_start_types = [1, 2, 3, 4, 9100, 9101, 9102, 9103]
+    teleport_dest_type = 14
     gutter = 10.0
 
-    def __init__(self, hub):
-        self.hub = hub
-        self.offset = omg.Vertex(hub.bounds.max.x + self.gutter, 0.0)
-        self.base_sector_id = maxid(hub.sectors)
-        self.base_thing_id = maxid(hub.things)
+    def __init__(self, mapinfo):
+        self.map = edit_map(mapinfo)
+        self.offset = omg.Vertex(self.map.bounds.max.x + self.gutter, 0.0)
 
     def to_textmap(self):
-        return self.hub.to_textmap()
+        return self.map.to_textmap()
 
     def to_lumps(self):
-        return self.hub.to_lumps()
+        return self.map.to_lumps()
 
-    def merge(self, spoke):
+    def merge(self, mapinfo):
+        spoke = edit_map(mapinfo)
+
         self.offset.x -= spoke.bounds.min.x
         move_map(spoke, self.offset)
+        self.offset.x += spoke.bounds.max.x + self.gutter
 
-        min_vertex = len(self.hub.vertexes)
-        min_linedef = len(self.hub.linedefs)
-        min_sidedef = len(self.hub.sidedefs)
-        min_sector = len(self.hub.sectors)
+        base_vertex = len(self.map.vertexes)
+        base_linedef = len(self.map.linedefs)
+        base_sidedef = len(self.map.sidedefs)
+        base_sector = len(self.map.sectors)
+
+        # TODO: Compact allocated IDs?
+        base_sector_id = maxid(self.map.sectors)
+        base_thing_id = maxid(self.map.things)
+        base_linedef_id = maxid(self.map.linedefs)
 
         for thing in spoke.things:
             if thing.id:
-                thing.id += self.base_thing_id
-            if thing.type in self.player_start_ids:
-                thing.type = self.teleport_dest_id
-            self.hub.things.append(thing)
+                thing.id += base_thing_id
+            if thing.type in self.player_start_types:
+                # TODO: Allocate new ids for teleport destinations
+                thing.type = self.teleport_dest_type
 
         for line in spoke.linedefs:
-            line.v1 += min_vertex
-            line.v2 += min_vertex
+            line.v1 += base_vertex
+            line.v2 += base_vertex
+            # TODO: Should these be base_linedef or base_thing_id
             if line.id is not None:
-                line.id += min_linedef
+                line.id += base_linedef
             if line.arg0 is not None:
-                line.arg0 += min_linedef
-            line.sidefront += min_sidedef
+                line.arg0 += base_linedef
+            line.sidefront += base_sidedef
             if line.sideback is not None:
-                line.sideback += min_sidedef
-            self.hub.linedefs.append(line)
-
-        for vert in spoke.vertexes:
-            self.hub.vertexes.append(vert)
+                line.sideback += base_sidedef
+            # TODO: Replace map change triggers (other than hub exit) with teleports to
+            # previously allocated teleport destinations
 
         for side in spoke.sidedefs:
-            side.sector += min_sector
-            self.hub.sidedefs.append(side)
+            side.sector += base_sector
 
         for sector in spoke.sectors:
-            if sector.id:
-                sector.id += self.base_sector_id
-            self.hub.sectors.append(sector)
+            if sector.id is not None:
+                sector.id += base_sector_id
 
-        self.offset.x += spoke.bounds.max.x + self.gutter
-        self.base_sector_id += maxid(spoke.sectors)
-        self.base_thing_id += maxid(spoke.things)
+        self.merge_acs(spoke, base_sector_id, base_thing_id, base_linedef_id)
+
+        self.map.things.extend(spoke.things)
+        self.map.linedefs.extend(spoke.linedefs)
+        self.map.vertexes.extend(spoke.vertexes)
+        self.map.sidedefs.extend(spoke.sidedefs)
+        self.map.sectors.extend(spoke.sectors)
+
+    def merge_acs(self, spoke, base_sector_id, base_thing_id, base_linedef_id):
+        """
+        TODO:
+* Merge string tables and fix references
+* Renumber and append scripts
+* Resolve map variable conflicts
+* Fix linedefs that reference scripts by number
+* Fix references to sectors, things and linedefs inside scripts
+* Simplify cross map triggers and references (return trigger etc.)
+* Specials etc. set by script will need similar fixups
+"""
+        pass
 
 
 def to_mapname(mapstr):
@@ -133,11 +157,11 @@ def hexenhubmerge(input, output, merged_map_name, hub, maps, udmf):
         return 1
 
     click.echo(f"Using {hubname} as the starting hub")
-    merger = MapMerger(edit_map(source.maps[hubname]))
+    merger = MapMerger(source.maps[hubname])
 
     for spoke in spokes:
         click.echo(f"Merging {spoke} starting at {merger.offset.x}")
-        merger.merge(edit_map(source.maps[spoke]))
+        merger.merge(source.maps[spoke])
 
     merged_map_name = to_mapname(merged_map_name)
     click.echo(
