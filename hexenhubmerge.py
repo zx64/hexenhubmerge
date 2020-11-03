@@ -2,6 +2,19 @@ import click
 import omg
 import os
 from collections import defaultdict
+from listacs import acsutil
+
+
+def acs_stats(acs):
+    click.echo(
+        f"""ACS summary:
+    Scripts: {len(acs.scripts)}
+    Functions: {len(acs.functions)}
+    Strings: {len(acs.strings)}
+    Vars: {len(acs.vars)}
+    Markers: {len(acs.markers)}
+"""
+    )
 
 
 class MapBounds:
@@ -32,6 +45,8 @@ def move_map(maped, by):
 def edit_map(mapinfo):
     ed = omg.UMapEditor(mapinfo, "Hexen")
     ed.bounds = MapBounds(ed)
+    ed.acs = acsutil.Behavior(ed.behavior.data)
+    acs_stats(ed.acs)
     return ed
 
 
