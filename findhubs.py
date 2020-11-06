@@ -48,11 +48,14 @@ def mapname(mapnum):
 
 def find_exits(linedefs, behavior):
     s = omg.mapedit.ZLinedef._fmtsize
+    LD_OFFSET_ACTION = 6
+    LD_OFFSET_ARG0 = 7
+    ACTION_NEWLEVEL = 74
     # Grab arg0 from all linedefs with action == 74
     exits = set(
-        mapname(linedefs[i + 7])
+        mapname(linedefs[i + LD_OFFSET_ARG0])
         for i in range(0, len(linedefs), s)
-        if linedefs[i + 6] == 74
+        if linedefs[i + LD_OFFSET_ACTION] == ACTION_NEWLEVEL
     )
 
     acs = acsutil.Behavior(behavior)
@@ -83,7 +86,7 @@ def find_exits(linedefs, behavior):
                 if special is None:
                     continue
                 try:
-                    if int(special.group(1)) != 74:
+                    if int(special.group(1)) != ACTION_NEWLEVEL:
                         continue
                 except ValueError:
                     continue
