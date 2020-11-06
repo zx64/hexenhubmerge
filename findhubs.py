@@ -70,13 +70,14 @@ def find_exits(linedefs, behavior):
     acs = acsutil.Behavior(behavior)
 
     for script in acs.scripts:
-        # TODO: Search for actual opcodes instead of string matching!
         bytecode = acs.data[script.ptr : script.end]
-        listing = list(script.disassemble())
 
         # Check for if (Gametype() == 2) prefix
         if bytecode.startswith(ifdm):
             continue
+
+        # TODO: Search for actual opcodes instead of string matching!
+        listing = list(script.disassemble())
         for idx, opcode in enumerate(listing):
             if lspec2.match(opcode):
                 # TODO: Assumes params are pushed in immediate prior opcodes
