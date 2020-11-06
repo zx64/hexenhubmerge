@@ -6,14 +6,14 @@ import struct
 from listacs import acsutil
 from collections import defaultdict
 
+
+def OP(name):
+    return getattr(acsutil, f"PCD_{name}")
+
+
 # Known prefix for a deathmatch only (Gametype() == 2) script
 ifdm = struct.pack(
-    "<5I",
-    acsutil.PCD_GAMETYPE,
-    acsutil.PCD_PUSHNUMBER,
-    2,
-    acsutil.PCD_EQ,
-    acsutil.PCD_IFNOTGOTO,
+    "<5I", OP("GAMETYPE"), OP("PUSHNUMBER"), 2, OP("EQ"), OP("IFNOTGOTO")
 )
 
 pushnumber = re.compile(".*: PUSHNUMBER (.*)$")
