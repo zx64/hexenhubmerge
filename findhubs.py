@@ -1,5 +1,6 @@
-import omg
 import click
+import omg
+import pickle
 import re
 from listacs import acsutil
 
@@ -7,6 +8,7 @@ from listacs import acsutil
 pushnumber = re.compile(".*: PUSHNUMBER (.*)$")
 lspec2 = re.compile(".*: LSPEC2 74$")
 lspec2direct = re.compile(".*: LSPEC2DIRECT 74, ([^,]*), (.*)$")
+setlinespecial = re.compile(".*: SETLINESPECIAL$")
 
 """
 Example bytecode sequences to search for:
@@ -27,11 +29,18 @@ Example bytecode sequences to search for:
 
 """
 
+
+def mapname(mapnum):
+    return f"MAP{mapnum:02}"
+
+
 def find_exits(linedefs, behavior):
     s = omg.mapedit.ZLinedef._fmtsize
     # Grab arg0 from all linedefs with action == 74
     exits = set(
-        linedefs[i + 7] for i in range(0, len(linedefs), s) if linedefs[i + 6] == 74
+        mapname(linedefs[i + 7])
+        for i in range(0, len(linedefs), s)
+        if linedefs[i + 6] == 74
     )
 
     acs = acsutil.Behavior(behavior)
@@ -45,14 +54,28 @@ def find_exits(linedefs, behavior):
                 # Stack could have been prepared in earlier instructions
                 arg0 = pushnumber.match(bytecode[idx - 2])
                 assert arg0 is not None
-                exits.add(int(arg0.group(1)))
+                exits.add(mapname(int(arg0.group(1))))
             elif m := lspec2direct.match(opcode):
-                exits.add(int(m.group(1)))
+                exits.add(mapname(int(m.group(1))))
+            elif setlinespecial.match(opcode):
+                # TODO: Assumes params are pushed in immediate prior opcodes
+                # Stack could have been prepared in earlier instructions
+                special = pushnumber.match(bytecode[idx - 6])
+                if special is None:
+                    continue
+                try:
+                    if int(special.group(1)) != 74:
+                        continue
+                except ValueError:
+                    continue
+                arg0 = pushnumber.match(bytecode[idx - 5])
+                assert arg0 is not None
+                exits.add(mapname(int(arg0.group(1))))
+            else:
+                # TODO: Any other opcodes to look for?
+                pass
 
-            # TODO: Any other opcodes to look for?
-            # SetLineSpecial maybe?
-
-    return exits
+    return sorted(exits)
 
 
 @click.command()
@@ -76,6 +99,8 @@ def findhubs(wadname):
         print(f"{mapname}: {s}")
 
     # TODO: Convert mapexits into hub/spoke graph
+    with open(f"{wadname}.pickle", "wb") as f:
+        pickle.dump(mapexits, f)
 
     return 0
 
