@@ -8,6 +8,24 @@ pushnumber = re.compile(".*: PUSHNUMBER (.*)$")
 lspec2 = re.compile(".*: LSPEC2 74$")
 lspec2direct = re.compile(".*: LSPEC2DIRECT 74, ([^,]*), (.*)$")
 
+"""
+Example bytecode sequences to search for:
+
+         396: PUSHNUMBER 34 <- arg0
+         404: PUSHNUMBER 0 <- arg1
+         412: LSPEC2 74
+
+        2360: LSPEC2DIRECT 74, 41, 0
+
+         928: PUSHNUMBER 74
+         936: PUSHNUMBER 5 <- arg0
+         944: PUSHNUMBER 0 <- arg1
+         952: PUSHNUMBER 0
+         960: PUSHNUMBER 0
+         968: PUSHNUMBER 0
+         976: SETLINESPECIAL
+
+"""
 
 def find_exits(linedefs, behavior):
     s = omg.mapedit.ZLinedef._fmtsize
