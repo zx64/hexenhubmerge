@@ -3,6 +3,7 @@ import omg
 import pickle
 import re
 from listacs import acsutil
+from collections import defaultdict
 
 
 gametype = re.compile(".*: GAMETYPE$")
@@ -116,13 +117,25 @@ def findhubs(wadname):
             mapinfo["LINEDEFS"].data, mapinfo["BEHAVIOR"].data
         )
 
-    for mapname, exits in mapexits.items():
+    mapenters = defaultdict(set)
+
+    print("Map  : Exits to")
+    for mapname, exits in sorted(mapexits.items()):
+        for exit in exits:
+            mapenters[exit].add(mapname)
         s = ", ".join(str(i) for i in exits)
+        print(f"{mapname}: {s}")
+
+    mapenters = {k:sorted(v) for k,v in mapenters.items()}
+
+    print("Map  : Comes from")
+    for mapname, entries in sorted(mapenters.items()):
+        s = ", ".join(str(i) for i in entries)
         print(f"{mapname}: {s}")
 
     # TODO: Convert mapexits into hub/spoke graph
     with open(f"{wadname}.pickle", "wb") as f:
-        pickle.dump(mapexits, f)
+        pickle.dump((mapexits, mapenters), f)
 
     return 0
 
