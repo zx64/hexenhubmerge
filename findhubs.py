@@ -12,13 +12,15 @@ setlinespecial = re.compile(".*: SETLINESPECIAL$")
 
 """
 Example bytecode sequences to search for:
-
+(HEXDD MAP33)
          396: PUSHNUMBER 34 <- arg0
          404: PUSHNUMBER 0 <- arg1
          412: LSPEC2 74
 
-        2360: LSPEC2DIRECT 74, 41, 0
+(HEXDD MAP42)
+        2404: LSPEC2DIRECT 74, 41, 0
 
+(HEXEN MAP02)
          928: PUSHNUMBER 74
          936: PUSHNUMBER 5 <- arg0
          944: PUSHNUMBER 0 <- arg1
@@ -27,6 +29,14 @@ Example bytecode sequences to search for:
          968: PUSHNUMBER 0
          976: SETLINESPECIAL
 
+However, some exits are conditional on being deathmatch (or not):
+(HEXDD MAP60)
+        2336: GAMETYPE
+        2340: PUSHNUMBER 2
+        2348: EQ
+        2352: IFNOTGOTO 2376
+        2360: LSPEC2DIRECT 74, 41, 0
+        2376: TERMINATE
 """
 
 
