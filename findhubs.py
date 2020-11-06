@@ -2,19 +2,27 @@ import click
 import omg
 import pickle
 import re
+import struct
 from listacs import acsutil
 from collections import defaultdict
 
+# Known prefix for a deathmatch only (Gametype() == 2) script
+ifdm = struct.pack(
+    "<5I",
+    acsutil.PCD_GAMETYPE,
+    acsutil.PCD_PUSHNUMBER,
+    2,
+    acsutil.PCD_EQ,
+    acsutil.PCD_IFNOTGOTO,
+)
 
-gametype = re.compile(".*: GAMETYPE$")
-eq = re.compile(".*: EQ$")
 pushnumber = re.compile(".*: PUSHNUMBER (.*)$")
 lspec2 = re.compile(".*: LSPEC2 74$")
 lspec2direct = re.compile(".*: LSPEC2DIRECT 74, ([^,]*), (.*)$")
 setlinespecial = re.compile(".*: SETLINESPECIAL$")
 
 """
-Example bytecode sequences to search for:
+Example dissassembled bytecode sequences to search for:
 (HEXDD MAP33)
          396: PUSHNUMBER 34 <- arg0
          404: PUSHNUMBER 0 <- arg1
@@ -63,19 +71,17 @@ def find_exits(linedefs, behavior):
 
     for script in acs.scripts:
         # TODO: Search for actual opcodes instead of string matching!
-        bytecode = list(script.disassemble())
+        bytecode = acs.data[script.ptr : script.end]
+        listing = list(script.disassemble())
 
-        # Hacky way to ignore some deathmach specific scripts
-        if gametype.match(bytecode[1]):
-            if m := pushnumber.match(bytecode[2]):
-                if int(m.group(1)) == 2:
-                    if eq.match(bytecode[3]):
-                        continue
-        for idx, opcode in enumerate(bytecode):
+        # Check for if (Gametype() == 2) prefix
+        if bytecode.startswith(ifdm):
+            continue
+        for idx, opcode in enumerate(listing):
             if lspec2.match(opcode):
                 # TODO: Assumes params are pushed in immediate prior opcodes
                 # Stack could have been prepared in earlier instructions
-                arg0 = pushnumber.match(bytecode[idx - 2])
+                arg0 = pushnumber.match(listing[idx - 2])
                 assert arg0 is not None
                 exits.add(mapname(int(arg0.group(1))))
             elif m := lspec2direct.match(opcode):
@@ -83,7 +89,7 @@ def find_exits(linedefs, behavior):
             elif setlinespecial.match(opcode):
                 # TODO: Assumes params are pushed in immediate prior opcodes
                 # Stack could have been prepared in earlier instructions
-                special = pushnumber.match(bytecode[idx - 6])
+                special = pushnumber.match(listing[idx - 6])
                 if special is None:
                     continue
                 try:
@@ -91,7 +97,7 @@ def find_exits(linedefs, behavior):
                         continue
                 except ValueError:
                     continue
-                arg0 = pushnumber.match(bytecode[idx - 5])
+                arg0 = pushnumber.match(listing[idx - 5])
                 assert arg0 is not None
                 exits.add(mapname(int(arg0.group(1))))
             else:
@@ -126,7 +132,7 @@ def findhubs(wadname):
         s = ", ".join(str(i) for i in exits)
         print(f"{mapname}: {s}")
 
-    mapenters = {k:sorted(v) for k,v in mapenters.items()}
+    mapenters = {k: sorted(v) for k, v in mapenters.items()}
 
     print("Map  : Comes from")
     for mapname, entries in sorted(mapenters.items()):
