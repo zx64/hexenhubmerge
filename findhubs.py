@@ -9,16 +9,17 @@ lspec2 = re.compile(".*: LSPEC2 74$")
 lspec2direct = re.compile(".*: LSPEC2DIRECT 74, ([^,]*), (.*)$")
 
 
-def find_exits(maped):
-    exits = set()
-    for line in maped.linedefs:
-        if line.action != 74:
-            continue
-        exits.add(line.arg0)
+def find_exits(linedefs, behavior):
+    s = omg.mapedit.ZLinedef._fmtsize
+    # Grab arg0 from all linedefs with action == 74
+    exits = set(
+        linedefs[i + 7] for i in range(0, len(linedefs), s) if linedefs[i + 6] == 74
+    )
 
-    acs = acsutil.Behavior(maped.behavior.data)
+    acs = acsutil.Behavior(behavior)
 
     for script in acs.scripts:
+        # TODO: Search for actual opcodes instead of string matching!
         bytecode = list(script.disassemble())
         for idx, opcode in enumerate(bytecode):
             if lspec2.match(opcode):
@@ -37,14 +38,20 @@ def find_exits(maped):
 
 
 @click.command()
-@click.argument("wadname", required=True, type=click.Path(exists=True, readable=True))
+@click.argument(
+    "wadname",
+    required=True,
+    type=click.Path(exists=True, readable=True, dir_okay=False),
+)
 def findhubs(wadname):
     wad = omg.WAD(wadname)
 
     mapexits = {}
 
     for mapname, mapinfo in wad.maps.items():
-        mapexits[mapname] = find_exits(omg.MapEditor(mapinfo))
+        mapexits[mapname] = find_exits(
+            mapinfo["LINEDEFS"].data, mapinfo["BEHAVIOR"].data
+        )
 
     for mapname, exits in mapexits.items():
         s = ", ".join(str(i) for i in exits)
