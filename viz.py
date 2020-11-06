@@ -4,7 +4,12 @@ import pickle
 
 def viz(name, exits, entries):
     for source in ("exits", "entries"):
-        dot = Digraph(comment=f"{name}-{source}")
+        dot = Digraph(
+            name=f"{name}-{source}",
+            format="png",
+            graph_attr={"overlap": "false"},
+            engine="neato",
+        )
 
         edges = set()
         g = locals()[source]
@@ -12,13 +17,15 @@ def viz(name, exits, entries):
             for edge in nodeedges:
                 edges.add((node, edge))
 
+        for node in g.keys():
+            dot.node(node)
         for edge in edges:
-            a, b = edge
-            if (b, a) in edges:
-                continue
+            # a, b = edge
+            # if (b, a) in edges:
+            #    continue
             dot.edge(*edge)
 
-        dot.render(f"{name}-{source}.gv", format="png")
+        dot.render()
 
 
 def main():
