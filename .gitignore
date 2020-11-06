@@ -1,5 +1,6 @@
 *.wad
 *.pk3
+*.pickle
 __pycache__
 env
 tmp

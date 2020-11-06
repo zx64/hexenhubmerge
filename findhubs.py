@@ -5,6 +5,8 @@ import re
 from listacs import acsutil
 
 
+gametype = re.compile(".*: GAMETYPE$")
+eq = re.compile(".*: EQ$")
 pushnumber = re.compile(".*: PUSHNUMBER (.*)$")
 lspec2 = re.compile(".*: LSPEC2 74$")
 lspec2direct = re.compile(".*: LSPEC2DIRECT 74, ([^,]*), (.*)$")
@@ -58,6 +60,13 @@ def find_exits(linedefs, behavior):
     for script in acs.scripts:
         # TODO: Search for actual opcodes instead of string matching!
         bytecode = list(script.disassemble())
+
+        # Hacky way to ignore some deathmach specific scripts
+        if gametype.match(bytecode[1]):
+            if m := pushnumber.match(bytecode[2]):
+                if int(m.group(1)) == 2:
+                    if eq.match(bytecode[3]):
+                        continue
         for idx, opcode in enumerate(bytecode):
             if lspec2.match(opcode):
                 # TODO: Assumes params are pushed in immediate prior opcodes
