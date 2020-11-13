@@ -46,7 +46,7 @@ def find_exits(linedefs, behavior):
             continue
 
         for idx, opcode in enumerate(opcodes):
-            if opcode == (LSPEC2, 74):
+            if opcode == (LSPEC2, ACTION_NEWLEVEL):
                 # HEXDD MAP33:
                 # idx - 2: PUSHNUMBER 34 <- arg0
                 # idx - 1: PUSHNUMBER 0 <- arg1
@@ -54,7 +54,7 @@ def find_exits(linedefs, behavior):
                 op, arg0 = opcodes[idx - 2]
                 assert op == PUSHNUMBER
                 exits.add(arg0)
-            elif opcode[0:2] == (LSPEC2DIRECT, 74):
+            elif opcode[0:2] == (LSPEC2DIRECT, ACTION_NEWLEVEL):
                 # HEXDD MAP42: LSPEC2DIRECT 74, 41, 0
                 exits.add(opcode[2])
             elif opcode == (SETLINESPECIAL,):
