@@ -38,7 +38,7 @@ def find_exits(linedefs, behavior):
     acs = acsutil.Behavior(behavior)
 
     for script in acs.scripts:
-        opcodes = list(script.opcodes())
+        opcodes = [opcode for _, opcode in script.opcodes()]
         if not opcodes:
             continue
 
