@@ -1,7 +1,7 @@
 import click
 import omg
 import pickle
-from listacs import acsutil
+from listacs import acsutil as ACS
 from collections import defaultdict
 
 
@@ -9,16 +9,12 @@ def mapname(mapnum):
     return f"MAP{mapnum:02}"
 
 
-def OP(name, *args):
-    return (acsutil.pcode_index[name], *args)
-
-
-PUSHNUMBER = acsutil.PCD_PUSHNUMBER
-IFNOTGOTO = acsutil.PCD_IFNOTGOTO
-lspec2 = OP("LSPEC2", 74)
-lspec2direct = OP("LSPEC2DIRECT", 74) # Partial op, match against op[0:2]
-setlinespecial = OP("SETLINESPECIAL")
-gametype_eq_2 = [OP("GAMETYPE"), OP("PUSHNUMBER", 2), OP("EQ")]
+IFNOTGOTO = ACS.PCD_IFNOTGOTO
+LSPEC2 = ACS.PCD_LSPEC2
+LSPEC2DIRECT = ACS.PCD_LSPEC2DIRECT
+PUSHNUMBER = ACS.PCD_PUSHNUMBER
+SETLINESPECIAL = ACS.PCD_SETLINESPECIAL
+gametype_eq_2 = [(ACS.PCD_GAMETYPE,), (PUSHNUMBER, 2), (ACS.PCD_EQ)]
 
 
 def find_exits(linedefs, behavior):
@@ -33,9 +29,7 @@ def find_exits(linedefs, behavior):
         if linedefs[i + LD_OFFSET_ACTION] == ACTION_NEWLEVEL
     )
 
-    acs = acsutil.Behavior(behavior)
-
-    for script in acs.scripts:
+    for script in ACS.Behavior(behavior).scripts:
         opcodes = [opcode for _, opcode in script.opcodes()]
         if not opcodes:
             continue
@@ -52,7 +46,7 @@ def find_exits(linedefs, behavior):
             continue
 
         for idx, opcode in enumerate(opcodes):
-            if opcode == lspec2:
+            if opcode == (LSPEC2, 74):
                 # HEXDD MAP33:
                 # idx - 2: PUSHNUMBER 34 <- arg0
                 # idx - 1: PUSHNUMBER 0 <- arg1
@@ -60,10 +54,10 @@ def find_exits(linedefs, behavior):
                 op, arg0 = opcodes[idx - 2]
                 assert op == PUSHNUMBER
                 exits.add(arg0)
-            elif opcode[0:2] == lspec2direct:
+            elif opcode[0:2] == (LSPEC2DIRECT, 74):
                 # HEXDD MAP42: LSPEC2DIRECT 74, 41, 0
                 exits.add(opcode[2])
-            elif opcode == setlinespecial:
+            elif opcode == (SETLINESPECIAL,):
                 # HEXEN MAP02
                 # idx - 6: PUSHNUMBER 74
                 # idx - 5: PUSHNUMBER 5 <- arg0
