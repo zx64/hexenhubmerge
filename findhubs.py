@@ -16,7 +16,7 @@ def OP(name, *args):
 PUSHNUMBER = acsutil.PCD_PUSHNUMBER
 IFNOTGOTO = acsutil.PCD_IFNOTGOTO
 lspec2 = OP("LSPEC2", 74)
-lspec2direct = OP("LSPEC2DIRECT", 74)
+lspec2direct = OP("LSPEC2DIRECT", 74) # Partial op, match against op[0:2]
 setlinespecial = OP("SETLINESPECIAL")
 gametype_eq_2 = [OP("GAMETYPE"), OP("PUSHNUMBER", 2), OP("EQ")]
 
