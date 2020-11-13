@@ -5,22 +5,20 @@ from listacs import acsutil
 from collections import defaultdict
 
 
-PUSHNUMBER = acsutil.PCD_PUSHNUMBER
-IFNOTGOTO = acsutil.PCD_IFNOTGOTO
+def mapname(mapnum):
+    return f"MAP{mapnum:02}"
 
 
 def OP(name, *args):
     return (acsutil.pcode_index[name], *args)
 
 
+PUSHNUMBER = acsutil.PCD_PUSHNUMBER
+IFNOTGOTO = acsutil.PCD_IFNOTGOTO
 lspec2 = OP("LSPEC2", 74)
 lspec2direct = OP("LSPEC2DIRECT", 74)
 setlinespecial = OP("SETLINESPECIAL")
 gametype_eq_2 = [OP("GAMETYPE"), OP("PUSHNUMBER", 2), OP("EQ")]
-
-
-def mapname(mapnum):
-    return f"MAP{mapnum:02}"
 
 
 def find_exits(linedefs, behavior):
