@@ -2,7 +2,7 @@ import click
 import omg
 import os
 from collections import defaultdict
-from listacs import acsutil
+from listacs import acsutil as ACS
 
 
 def acs_stats(acs):
@@ -45,7 +45,7 @@ def move_map(maped, by):
 def edit_map(mapinfo):
     ed = omg.UMapEditor(mapinfo, "Hexen")
     ed.bounds = MapBounds(ed)
-    ed.acs = acsutil.Behavior(ed.behavior.data)
+    ed.acs = ACS.Behavior(ed.behavior.data)
     acs_stats(ed.acs)
     return ed
 
@@ -59,8 +59,8 @@ def maxid(seq):
 
 
 class Specials:
-    Teleport = 70
-    Teleport_NewMap = 74
+    Teleport = ACS.LineSpecials.Teleport
+    Teleport_NewMap = ACS.LineSpecials.Teleport_NewMap
 
     # arg0 of some actions specials refers to a thing id
     action_uses_thing = [Teleport]
