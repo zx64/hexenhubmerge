@@ -8,13 +8,8 @@ from collections import defaultdict
 def mapname(mapnum):
     return f"MAP{mapnum:02}"
 
-
-IFNOTGOTO = ACS.PCD_IFNOTGOTO
-LSPEC2 = ACS.PCD_LSPEC2
-LSPEC2DIRECT = ACS.PCD_LSPEC2DIRECT
-PUSHNUMBER = ACS.PCD_PUSHNUMBER
-SETLINESPECIAL = ACS.PCD_SETLINESPECIAL
-gametype_eq_2 = [(ACS.PCD_GAMETYPE,), (PUSHNUMBER, 2), (ACS.PCD_EQ)]
+OP = ACS.OPCodes
+gametype_eq_2 = [(OP.GAMETYPE,), (OP.PUSHNUMBER, 2), (OP.EQ)]
 
 
 def find_exits(linedefs, behavior):
@@ -35,7 +30,7 @@ def find_exits(linedefs, behavior):
             continue
 
         # Check for if (Gametype() == 2) prefix
-        if opcodes[0:3] == gametype_eq_2 and opcodes[3][0] == IFNOTGOTO:
+        if opcodes[0:3] == gametype_eq_2 and opcodes[3][0] == OP.IFNOTGOTO:
             # HEXDD MAP60:
             # GAMETYPE
             # PUSHNUMBER 2
@@ -46,18 +41,18 @@ def find_exits(linedefs, behavior):
             continue
 
         for idx, opcode in enumerate(opcodes):
-            if opcode == (LSPEC2, ACTION_NEWLEVEL):
+            if opcode == (OP.LSPEC2, ACTION_NEWLEVEL):
                 # HEXDD MAP33:
                 # idx - 2: PUSHNUMBER 34 <- arg0
                 # idx - 1: PUSHNUMBER 0 <- arg1
                 # idx    : LSPEC2 74
                 op, arg0 = opcodes[idx - 2]
-                assert op == PUSHNUMBER
+                assert op == OP.PUSHNUMBER
                 exits.add(arg0)
-            elif opcode[0:2] == (LSPEC2DIRECT, ACTION_NEWLEVEL):
+            elif opcode[0:2] == (OP.LSPEC2DIRECT, ACTION_NEWLEVEL):
                 # HEXDD MAP42: LSPEC2DIRECT 74, 41, 0
                 exits.add(opcode[2])
-            elif opcode == (SETLINESPECIAL,):
+            elif opcode == (OP.SETLINESPECIAL,):
                 # HEXEN MAP02
                 # idx - 6: PUSHNUMBER 74
                 # idx - 5: PUSHNUMBER 5 <- arg0
@@ -67,12 +62,12 @@ def find_exits(linedefs, behavior):
                 # idx - 1: PUSHNUMBER 0
                 # idx    : SETLINESPECIAL
                 op, special = opcodes[idx - 6]
-                if op != PUSHNUMBER:
+                if op != OP.PUSHNUMBER:
                     continue
                 if special != ACTION_NEWLEVEL:
                     continue
                 op, arg0 = opcodes[idx - 5]
-                assert op == PUSHNUMBER
+                assert op == OP.PUSHNUMBER
                 exits.add(arg0)
 
     return sorted(mapname(e) for e in exits)
