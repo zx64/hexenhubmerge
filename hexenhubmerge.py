@@ -4,6 +4,8 @@ import os
 from collections import defaultdict
 from listacs import acsutil as ACS
 
+Specials = ACS.LineSpecials
+
 
 def acs_stats(acs):
     click.echo(
@@ -58,17 +60,36 @@ def maxid(seq):
         return 0
 
 
-class Specials:
-    Teleport = ACS.LineSpecials.Teleport
-    Teleport_NewMap = ACS.LineSpecials.Teleport_NewMap
+def GroupSpecials(substrs, *explicit):
+    result = set(explicit)
+    for substr in substrs:
+        result.update(s for s in Specials if substr in s.name)
+    return result
 
-    # arg0 of some actions specials refers to a thing id
-    action_uses_thing = [Teleport]
-    # arg0 of some actions specials refers to a line id
-    action_uses_line = []
 
-    # arg0 of some actions should be treated as a fixed number
-    action_fixed = [Teleport_NewMap]
+# Categorise the type of fixup to be applied (if any) to a special's arg0
+# TODO: Polyobj_ ?
+
+ThingSpecials = GroupSpecials(["Thing_"], Specials.Teleport, Specials.Teleport_NoFog)
+LineSpecials = GroupSpecials(["Line_"])
+SectorSpecials = GroupSpecials(
+    [
+        "Ceiling_",
+        "Door_",
+        "Floor_",
+        "FloorAndCeiling_",
+        "Generic_",
+        "Light_",
+        "Pillar_",
+        "Plat_",
+        "Sector_",
+        "Stairs_",
+    ],
+    # TODO: Slade lists these as specials but listacs only has them as opcodes?
+    # Specials.ChangeCeiling,
+    # Specials.ChangeFloor,
+    # Specials.TagWait,
+)
 
 
 class Things:
@@ -108,7 +129,7 @@ class MapMerger:
             orig_arg1 = line.arg1
             orig_arg2 = line.arg2
             if line.arg0 == source_hubnum:
-                # line.special = Specials.teleport
+                # line.special = Specials.Teleport
                 # line.arg0 = self.teleport_ids[0][line.arg1]
                 # line.arg1 = 0
                 # line.arg2 = 0
@@ -149,6 +170,23 @@ class MapMerger:
         base_thing_id = maxid(self.map.things)
         base_linedef_id = maxid(self.map.linedefs)
 
+        def fix_specials(item):
+            # TODO: More complete parameter fixups
+            if item.special == 0 or item.arg0 is None:
+                return
+
+            if item.special in ThingSpecials:
+                item.arg0 += base_thing_id
+            elif item.special in LineSpecials:
+                item.arg0 += base_linedef_id
+            elif item.special in SectorSpecials:
+                item.arg0 += base_sector_id
+            elif item.special == Specials.Radius_Quake:
+                item.arg4 += base_thing_id
+            else:
+                # args should be left alone
+                pass
+
         for thing in spoke.things:
             if thing.id:
                 thing.id += base_thing_id
@@ -161,26 +199,17 @@ class MapMerger:
                 thing.type = Things.TeleportDest
                 # thing.id = self.teleport_ids[mapnum][thing.arg0]
                 # thing.arg0 = 0
+            fix_specials(thing)
 
         for idx, line in enumerate(spoke.linedefs):
             line.v1 += base_vertex
             line.v2 += base_vertex
             if line.id is not None:
                 line.id += base_linedef_id
-            # TODO: More complete parameter fixups
-            if line.arg0 is not None:
-                if line.special in Specials.action_uses_thing:
-                    line.arg0 += base_thing_id
-                elif line.special in Specials.action_uses_line:
-                    line.arg0 += base_linedef_id
-                elif line.special in Specials.action_fixed:
-                    # arg0 should be left alone
-                    pass
-                else:
-                    line.arg0 += base_sector_id
             line.sidefront += base_sidedef
             if line.sideback is not None:
                 line.sideback += base_sidedef
+            fix_specials(line)
 
         for side in spoke.sidedefs:
             side.sector += base_sector
@@ -188,6 +217,7 @@ class MapMerger:
         for sector in spoke.sectors:
             if sector.id is not None:
                 sector.id += base_sector_id
+            fix_specials(sector)
 
         self.merge_acs(spoke, base_sector_id, base_thing_id, base_linedef_id)
 
