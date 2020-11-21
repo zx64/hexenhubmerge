@@ -1,5 +1,5 @@
-from graphviz import Digraph
 import pickle
+from graphviz import Digraph
 
 
 def viz(name, exits, entries):

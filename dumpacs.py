@@ -4,7 +4,6 @@ from listacs import acsutil
 from tqdm import tqdm
 
 
-
 def dump(mapname, lump):
     # TODO: Extract more of the front end from listacs.py into callables
     # Until then, for %A in (*.o) do listacs.py -o %~nA.acs -d %A

@@ -1,9 +1,8 @@
 import click
 import omg
 import pickle
-from listacs import acsutil as ACS
 from collections import defaultdict
-
+from listacs import acsutil as ACS
 
 OP = ACS.OPCodes
 gametype_eq_2 = [(OP.GAMETYPE,), (OP.PUSHNUMBER, 2), (OP.EQ)]
