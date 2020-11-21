@@ -4,5 +4,5 @@
 *.png
 *.wad
 __pycache__
-env
+venv
 tmp
